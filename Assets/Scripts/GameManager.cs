@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using Proyecto26;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.PlayerLoop;
@@ -10,6 +11,7 @@ public class GameManager : MonoBehaviour
     public Text currentPlayerNameText;
     public Text currentMoneyText;
     public Text currentExperienceText;
+    public InputField currentPlayerNameInputField;
 
     [Header("Player Profile")]
     private PlayerProfile playerProfile = new PlayerProfile();
@@ -51,5 +53,20 @@ public class GameManager : MonoBehaviour
         SaveData.current = (SaveData)SerializationManager.Load(Application.persistentDataPath + "/Saves/Save.save");
         playerProfile = SaveData.current.profile;
         UpdateUI();
+    }
+
+    public void SaveToFirebase()
+    {
+        //RestClient.Put to avoid having the system generate random strings of characters. Otherwise, you may use RestClient.Post().
+        RestClient.Put("https://multifacetedsavingproject.firebaseio.com/" + playerProfile.playerName + ".json", playerProfile);
+    }
+
+    public void LoadFromFirebase()
+    {
+        RestClient.Get<PlayerProfile>("https://multifacetedsavingproject.firebaseio.com/" + currentPlayerNameInputField.text + ".json").Then(response =>
+        {
+            playerProfile = response;
+            UpdateUI();
+        });
     }
 }
