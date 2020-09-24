@@ -1,6 +1,8 @@
 ﻿using Proyecto26;
+using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
 using UnityEngine;
 using UnityEngine.PlayerLoop;
 using UnityEngine.UI;
@@ -17,6 +19,14 @@ public class GameManager : MonoBehaviour
     private PlayerProfile playerProfile = new PlayerProfile();
     private string[] playerNames = { "Ruby", "Jane", "Lisa", "Jisoo", "Ryan" };
 
+    [Header("Firebase Information")]
+    private string idToken;
+    private string databaseURL = "https://multifacetedsavingproject.firebaseio.com/users";
+    private string AuthKey = "AIzaSyA4UIovzKrNwxMjcB0FiDtAMSqiO-C_hes";
+    public InputField usernameTextInputField;
+    public InputField passwordTextInputField;
+    public InputField emailTextInputField;
+    public static string localID; //Only for Firebase integration.
     public void AddMoney()
     {
         playerProfile.playerCurrency += 50;
@@ -31,7 +41,7 @@ public class GameManager : MonoBehaviour
 
     public void DrawRandomName()
     {
-        playerProfile.playerName = playerNames[Random.Range(0, playerNames.Length)];
+        playerProfile.playerName = playerNames[UnityEngine.Random.Range(0, playerNames.Length)];
         UpdateUI();
     }
 
@@ -55,18 +65,74 @@ public class GameManager : MonoBehaviour
         UpdateUI();
     }
 
-    public void SaveToFirebase()
+    /// <summary>
+    /// Firebase Integration Below
+    /// </summary>
+    /// 
+    public void SaveToFirebase(bool emptyScore = false)
     {
         //RestClient.Put to avoid having the system generate random strings of characters. Otherwise, you may use RestClient.Post().
-        RestClient.Put("https://multifacetedsavingproject.firebaseio.com/" + playerProfile.playerName + ".json", playerProfile);
+        if (emptyScore == true)
+        {
+            playerProfile.playerCurrency = 0;
+            playerProfile.playerExperience = 0;
+        }
+        RestClient.Put(databaseURL + "/" + localID + ".json", playerProfile);
     }
 
     public void LoadFromFirebase()
     {
-        RestClient.Get<PlayerProfile>("https://multifacetedsavingproject.firebaseio.com/" + currentPlayerNameInputField.text + ".json").Then(response =>
+        RestClient.Get<PlayerProfile>(databaseURL + "/" + localID + ".json").Then(response =>
         {
             playerProfile = response;
             UpdateUI();
         });
     }
+
+    public void SignUpUserButton()
+    {
+        SignUpUser(emailTextInputField.text, usernameTextInputField.text, passwordTextInputField.text);
+    }
+
+    public void SignInUserButton()
+    {
+        SignInUser(emailTextInputField.text, passwordTextInputField.text);
+    }
+
+    //Firebase Authentication System
+    private void SignUpUser(string email, string username, string password)
+    {
+        string userData = "{\"email\":\"" + email + "\",\"password\":\"" + password + "\",\"returnSecureToken\":true}";
+        RestClient.Post<SignResponse>("https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=" + AuthKey, userData).Then(response =>
+        {
+            idToken = response.idToken;
+            localID = response.localID;
+            playerProfile.playerName = username;
+            playerProfile.localID = localID;
+            SaveToFirebase(true);
+        }).Catch(error =>
+        {
+            Debug.LogError("Unable to create new user due to: " + error);
+        });
+    }
+
+    private void SignInUser(string email, string password)
+    {
+        string userData = "{\"email\":\"" + email + "\",\"password\":\"" + password + "\",\"returnSecureToken\":true}";
+        RestClient.Post<SignResponse>("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=" + AuthKey, userData).Then(response =>
+        {
+            idToken = response.idToken;
+            localID = response.localID;
+        }).Catch(error =>
+        {
+            Debug.LogError("Unable to login due to: " + error);
+        });
+    }
+}
+
+[Serializable]
+public class SignResponse
+{
+    public string localID;
+    public string idToken;
 }
